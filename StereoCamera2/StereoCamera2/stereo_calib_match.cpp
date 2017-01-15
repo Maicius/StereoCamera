@@ -20,8 +20,8 @@ using namespace std;
 typedef unsigned int uint;
 
 Size imgSize(1280, 720);
-Size patSize(14, 12);           //每张棋盘寻找的角点个数是14*12个
-const double patLen = 5.0f;    // unit: mm  标定板每个格的宽度（金属标定板）
+Size patSize(9, 6);           //每张棋盘寻找的角点个数是14*12个
+const double patLen = 19.1f;    // unit: mm  标定板每个格的宽度（金属标定板）
 double imgScale = 1.0;          //图像缩放的比例因子
 
 
@@ -347,7 +347,7 @@ int stereoCalibrate(string intrinsic_filename="intrinsics.yml", string extrinsic
         std::cout << "Error: can not save the intrinsic parameters\n";
 	
 	std::cout<<"双目标定完成..."<<endl;
-	getchar();getchar();
+	//getchar();getchar();
 	return 0;
 }
 
@@ -509,8 +509,8 @@ int main(){
 	string point_cloud_filename = "输出/point_test3D.txt";
 
 	/* 立体标定 运行一次即可 */
-	//initFileList("calib_pic", 1, 26);
-	//stereoCalibrate(intrinsic_filename, extrinsic_filename); 
+	initFileList("I:\\StereoCamera\\StereoCamera2\\StereoCamera2\\calib_pic2", 1, 12);
+	stereoCalibrate(intrinsic_filename, extrinsic_filename); 
 
 	/* 立体匹配 */
 	initFileList("I:\\StereoCamera\\StereoCamera2\\StereoCamera2\\test_pic", 1, 2);
