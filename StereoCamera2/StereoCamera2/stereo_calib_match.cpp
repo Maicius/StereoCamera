@@ -30,7 +30,7 @@ vector<string> fileList;
 void initFileList(string dir, int first, int last){
 	fileList.clear();
 	for(int cur = first; cur <= last; cur++){
-		string str_file = dir + "/" + to_string(cur) + ".jpg";
+		string str_file = dir + "\\" + to_string(cur) + ".jpg";
 		fileList.push_back(str_file);
 	}
 }
@@ -356,10 +356,10 @@ int stereoCalibrate(string intrinsic_filename="intrinsics.yml", string extrinsic
 //------------------------------------------------------
 // 双目立体匹配和测量
 int stereoMatch(int picNum, 
-				string intrinsic_filename="intrinsics.yml", 
-				string extrinsic_filename="extrinsics.yml", 
-				bool no_display=true, 
-				string point_cloud_filename="输出/point3D.txt"
+				string intrinsic_filename, 
+				string extrinsic_filename, 
+				bool no_display, 
+				string point_cloud_filename
 				)
 {
 	//获取待处理的左右相机图像
@@ -504,17 +504,17 @@ int stereoMatch(int picNum,
 
 
 int main(){
-	string intrinsic_filename = "intrinsics.yml";
-	string extrinsic_filename = "extrinsics.yml";
-	string point_cloud_filename = "输出/point3D.txt";
+	string intrinsic_filename = "robomaster_stereo_camera_intrinsics.yml";
+	string extrinsic_filename = "robomaster_stereo_camera_extrinsics.yml";
+	string point_cloud_filename = "输出/point_test3D.txt";
 
 	/* 立体标定 运行一次即可 */
 	//initFileList("calib_pic", 1, 26);
 	//stereoCalibrate(intrinsic_filename, extrinsic_filename); 
 
 	/* 立体匹配 */
-	initFileList("test_pic", 1, 2);
-	stereoMatch(0, intrinsic_filename, extrinsic_filename, true, point_cloud_filename);
+	initFileList("I:\\StereoCamera\\StereoCamera2\\StereoCamera2\\test_pic", 1, 2);
+	stereoMatch(0, intrinsic_filename, extrinsic_filename, false, point_cloud_filename);
 
 	return 0;
 }

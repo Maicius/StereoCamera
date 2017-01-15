@@ -37,3 +37,4 @@ StereoCamera2/StereoCamera2/calib_pic/
 *.filters
 StereoCamera2/StereoCamera2/test_pic/
 *.jpg
+*.opensdf
