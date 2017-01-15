@@ -27,3 +27,13 @@
 *.exe
 *.out
 *.app
+*.sdf
+*.sln
+*.suo
+StereoCamera2/Debug/
+StereoCamera2/StereoCamera2/Debug/
+StereoCamera2/StereoCamera2/calib_pic/
+*.vcxproj
+*.filters
+StereoCamera2/StereoCamera2/test_pic/
+*.jpg
