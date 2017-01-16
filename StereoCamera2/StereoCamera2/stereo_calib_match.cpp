@@ -13,7 +13,7 @@
 #include <iterator>
 #include <cstdio>
 #include <string>
-
+#include <math.h>
 using namespace cv;
 using namespace std;
 
@@ -39,11 +39,11 @@ void initFileList(string dir, int first, int last){
 // 生成点云坐标后保存
 static void saveXYZ(string filename, const Mat& mat)
 {
-
+	ofstream fpDistance("distance.txt");
 	const double max_z = 1.0e4;
 	ofstream fp(filename);
 	if (!fp.is_open())
-	{  
+	{
 		std::cout<<"打开点云文件失败"<<endl;    
 		fp.close();  
 		return ;
@@ -57,9 +57,11 @@ static void saveXYZ(string filename, const Mat& mat)
 			if(fabs(point[2] - max_z) < FLT_EPSILON || fabs(point[2]) > max_z)   
 				continue;   
 			fp<<point[0]<<" "<<point[1]<<" "<<point[2]<<endl;
+			fpDistance<<sqrt(point[0]*point[0] + point[1]*point[1] + point[2]+point[2])<<endl; 
 		}
 	}
 	fp.close();
+	fpDistance.close();
 }
 
 
