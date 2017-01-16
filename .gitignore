@@ -38,3 +38,6 @@ StereoCamera2/StereoCamera2/calib_pic/
 StereoCamera2/StereoCamera2/test_pic/
 *.jpg
 *.opensdf
+*.vspx
+*.etl
+*.pdb
