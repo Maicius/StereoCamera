@@ -67,6 +67,11 @@
       <ProjName>StereoCamera2</ProjName>
     </ProjBinary>
   </Binaries>
+  <Reports>
+    <Report>
+      <Path>StereoCamera2170116.vspx</Path>
+    </Report>
+  </Reports>
   <Launches>
     <ProjBinary>
       <Path>:PB:{4F8D4133-0744-4ACF-B2CF-96E829D1AD74}|StereoCamera2\StereoCamera2.vcxproj</Path>

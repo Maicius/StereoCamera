@@ -20,9 +20,9 @@ using namespace std;
 typedef unsigned int uint;
 
 Size imgSize(1280, 720);
-Size patSize(9, 6);           //每张棋盘寻找的角点个数是14*12个
+Size patSize(9, 6);           //每张棋盘寻找的角点个数是9*6个
 const double patLen = 19.1f;    // unit: mm  标定板每个格的宽度（金属标定板）
-double imgScale = 1.0;          //图像缩放的比例因子
+double imgScale = 0.5;          //图像缩放的比例因子
 
 
 //将要读取的图片路径存储在fileList中
@@ -364,6 +364,8 @@ int stereoMatch(int picNum,
 				)
 {
 	//获取待处理的左右相机图像
+	
+
 	int color_mode = 0;
 	Mat rawImg = imread(fileList[picNum], color_mode);    //待处理图像  grayScale
 	if(rawImg.empty()){
@@ -371,18 +373,24 @@ int stereoMatch(int picNum,
 		return 0;
 	}
 	//截取
+	int64 time_t  = getTickCount();
 	Rect leftRect(0, 0, imgSize.width, imgSize.height);
 	Rect rightRect(imgSize.width, 0, imgSize.width, imgSize.height);
 	Mat img1 = rawImg(leftRect);       //切分得到的左原始图像
 	Mat img2 = rawImg(rightRect);      //切分得到的右原始图像
+	time_t = getTickCount() - time_t;
+	printf("裁剪图像耗时：%fms\n",time_t*1000/getTickFrequency());
 	//图像根据比例缩放
 	if(imgScale != 1.f){
+		time_t = getTickCount();
 		Mat temp1, temp2;
 		int method = imgScale < 1 ? INTER_AREA : INTER_CUBIC;
 		resize(img1, temp1, Size(), imgScale, imgScale, method);
 		img1 = temp1;
 		resize(img2, temp2, Size(), imgScale, imgScale, method);
 		img2 = temp2;
+		time_t = getTickCount() - time_t;
+		printf("缩放图像耗时：%fms\n", time_t*1000/getTickFrequency());
 	}
 	imwrite("输出/原始左图像.jpg", img1);
 	imwrite("输出/原始右图像.jpg", img2);
@@ -404,7 +412,7 @@ int stereoMatch(int picNum,
 
 	M1 *= imgScale;
 	M2 *= imgScale;
-
+	time_t = getTickCount();
 	// 读取双目相机的立体矫正参数
 	fs.open(extrinsic_filename, CV_STORAGE_READ);
 	if(!fs.isOpened())
@@ -434,8 +442,10 @@ int stereoMatch(int picNum,
 	remap(img2, img2r, map21, map22, INTER_LINEAR);
 	img1 = img1r;
 	img2 = img2r;
-
+	time_t = getTickCount() - time_t;
+	printf("立体校正耗时：%fms\n",time_t*1000/getTickFrequency());
 	// 初始化 stereoBMstate 结构体
+	int64 t = getTickCount();
 	StereoBM bm;
 
 	int unitDisparity = 15;//40
@@ -454,10 +464,10 @@ int stereoMatch(int picNum,
 
 	// 计算
 	Mat disp, disp8;
-	int64 t = getTickCount();
+	
 	bm(img1, img2, disp);
 	t = getTickCount() - t;
-	printf("立体匹配耗时: %fms\n", t*1000/getTickFrequency());
+	printf("BM立体匹配耗时: %fms\n", t*1000/getTickFrequency());
 
 	// 将16位符号整形的视差矩阵转换为8位无符号整形矩阵
 	disp.convertTo(disp8, CV_8U, 255/(numberOfDisparities*16.));
@@ -472,6 +482,7 @@ int stereoMatch(int picNum,
 
 	//显示
 	if(!no_display){
+		time_t = getTickCount();
 		imshow("左侧矫正图像", img1);
 		imwrite("输出/left_undistortRectify.jpg", img1);
 		imshow("右侧矫正图像", img2);
@@ -482,6 +493,8 @@ int stereoMatch(int picNum,
 		imwrite("输出/视差图_彩色.jpg", vdispRGB);
 		imshow("左矫正图像与视差图合并图像", merge_mat);
 		imwrite("输出/左矫正图像与视差图合并图像.jpg", merge_mat);
+		time_t = getTickCount() - time_t;
+		printf("显示耗时：%fms",time_t*1000/getTickFrequency());
 		cv::waitKey();
 		std::cout<<endl;
 	}
