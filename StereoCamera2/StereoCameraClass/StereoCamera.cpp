@@ -94,36 +94,102 @@ void StereoCamera::fromGrayToColor(cv::Mat gray_mat, cv::Mat& color_mat)
 	cv::merge(vec, color_mat);
 }
 
+void StereoCamera::tailImage(cv::Mat rawImg)
+{
+	cv::Rect leftRect(0, 0, imgSize.width, imgSize.height);
+	cv::Rect rightRect(imgSize.width, 0, imgSize.width, imgSize.height);
+
+	this->leftImage = rawImg(leftRect);       //切分得到的左原始图像
+	this->rightImage = rawImg(rightRect);     //切分得到的右原始图像
+}
+
+void StereoCamera::findchessboardCorners(cv::Mat leftImg, cv::Mat rightImg, uint i){
+	//寻找角点， 图像缩放
+	using namespace cv;	
+	vector<Point2f> leftPts, rightPts;      // 存储左右相机的角点位置
+	Mat leftSimg, rightSimg, leftCimg, rightCimg;
+	resize(leftImg, leftSimg, Size(), imgScale, imgScale);      //图像以0.5的比例缩放
+	resize(rightImg, rightSimg, Size(), imgScale, imgScale);
+	cvtColor(leftSimg, leftCimg, CV_GRAY2BGR);     //转为BGR图像，cimg和simg是800*600的图像
+	cvtColor(rightSimg, rightCimg, CV_GRAY2BGR);
+	//寻找棋盘角点
+	bool leftFound = findChessboardCorners(leftCimg, chessboardSize, leftPts, CV_CALIB_CB_ADAPTIVE_THRESH|CV_CALIB_CB_FILTER_QUADS);
+	bool rightFound = findChessboardCorners(rightCimg, chessboardSize, rightPts, CV_CALIB_CB_ADAPTIVE_THRESH|CV_CALIB_CB_FILTER_QUADS);
+
+	if(leftFound)
+		cornerSubPix(leftSimg, leftPts, Size(11, 11), Size(-1,-1 ), 
+		TermCriteria(CV_TERMCRIT_ITER + CV_TERMCRIT_EPS, 300, 0.01));
+	if(rightFound)
+		cornerSubPix(rightSimg, rightPts, Size(11, 11), Size(-1, -1), 
+		TermCriteria(CV_TERMCRIT_ITER + CV_TERMCRIT_EPS, 300, 0.01));   //亚像素
+
+	//放大为原来的尺度
+	for(uint j = 0;j < leftPts.size();j++)
+		leftPts[j] *= 1./imgScale;
+	for(uint j = 0;j < rightPts.size();j++)
+		rightPts[j] *= 1./imgScale;
+	//显示
+	string leftWindowName = "Left Corner Pic", rightWindowName = "Right Corner Pic";
+	Mat leftPtsTmp = Mat(leftPts) * imgScale;      //再次乘以 imgScale
+	Mat rightPtsTmp = Mat(rightPts) * imgScale;
+
+	drawChessboardCorners(leftCimg, chessboardSize, leftPtsTmp, leftFound);      //绘制角点坐标并显示
+	imshow(leftWindowName, leftCimg);
+	imwrite("输出/DrawChessBoard/"+std::to_string(i)+"_left.jpg", leftCimg);
+	waitKey(200);
+	drawChessboardCorners(rightCimg, chessboardSize, rightPtsTmp, rightFound);   //绘制角点坐标并显示
+	imshow(rightWindowName, rightCimg);
+	imwrite("输出/DrawChessBoard/"+std::to_string(i)+"_right.jpg", rightCimg);
+	waitKey(200);
+	cv::destroyAllWindows();
+
+	//保存角点坐标
+	if(leftFound && rightFound)   
+	{
+		imagePoints[0].push_back(leftPts);
+		imagePoints[1].push_back(rightPts);  //保存角点坐标
+		std::cout<<"图片 "<<i<<" 处理成功！"<<std::endl;
+		idx.push_back(i);
+	}
+}
+void StereoCamera::preBlurImage(cv::Mat leftImg, cv::Mat rightImg)
+{
+	using namespace cv;
+	Mat leftMask, rightMask;
+	resize(leftImg, leftMask, Size(200, 200));		//resize对原图像img重新调整大小生成mask图像大小为200*200
+	resize(rightImg, rightMask, Size(200, 200));
+	GaussianBlur(leftMask, leftMask, Size(13, 13), 7);   
+	GaussianBlur(rightMask, rightMask, Size(13, 13), 7); 
+	resize(leftMask, leftMask, imgSize);
+	resize(rightMask, rightMask, imgSize);
+	medianBlur(leftMask, leftMask, 9);    //中值滤波
+	medianBlur(rightMask, rightMask, 9);
+
+	for (int v = 0; v < imgSize.height; v++) {
+		for (int u = 0; u < imgSize.width; u++) {
+			int leftX = ((int)leftImg.at<uchar>(v, u) - (int)leftMask.at<uchar>(v, u)) * 2 + 128;
+			int rightX = ((int)rightImg.at<uchar>(v, u) - (int)rightMask.at<uchar>(v, u)) * 2 + 128;
+			leftImg.at<uchar>(v, u)  = max(min(leftX, 255), 0);
+			rightImg.at<uchar>(v, u) = max(min(rightX, 255), 0);
+		}
+	}
+	this->leftImage = leftImg;
+	this->rightImage = rightImg;
+}
 void StereoCamera::stereoCalibrateCamera(std::string intrinsic_filename, std::string extrinsic_filename)
 {
 	using namespace cv;
-	std::vector<int> idx;
-	//左侧相机的角点坐标和右侧相机的角点坐标
-	std::vector<std::vector<cv::Point2f>> imagePoints[2];
-
-	//vector<vector<Point2f>> leftPtsList(fileList.size());
-	//vector<vector<Point2f>> rightPtsList(fileList.size());
-
 	for(uint i = 0; i < picFileList.size();++i)
 	{
-		std::vector<cv::Point2f> leftPts, rightPts;      // 存储左右相机的角点位置
 		cv::Mat rawImg = cv::imread(picFileList[i]);					   //原始图像
 		if(rawImg.empty()){
 			std::cout<<"the Image is empty..."<<picFileList[i]<<std::endl;
 			continue;
 		}
 		//截取左右图片
-		Rect leftRect(0, 0, imgSize.width, imgSize.height);
-		Rect rightRect(imgSize.width, 0, imgSize.width, imgSize.height);
-
-		Mat leftRawImg = rawImg(leftRect);       //切分得到的左原始图像
-		Mat rightRawImg = rawImg(rightRect);     //切分得到的右原始图像
-
-		//imwrite("left.jpg", leftRawImg);
-		//imwrite("right.jpg", rightRawImg);
-		//std::cout<<"左侧图像：  宽度"<<leftRawImg.size().width<<"  高度"<<rightRawImg.size().height<<endl;
-		//std::cout<<"右侧图像：  宽度"<<rightRawImg.size().width<<"  高度"<<rightRawImg.size().height<<endl;  //
-
+		tailImage(rawImg);
+		Mat leftRawImg = getLeftImage();      
+		Mat rightRawImg = getRightImage();    
 		Mat leftImg, rightImg, leftSimg, rightSimg, leftCimg, rightCimg, leftMask, rightMask;
 		// BGT -> GRAY	
 		if(leftRawImg.type() == CV_8UC3)
@@ -134,78 +200,10 @@ void StereoCamera::stereoCalibrateCamera(std::string intrinsic_filename, std::st
 			cvtColor(rightRawImg, rightImg, CV_BGR2GRAY); 
 		else
 			rightImg = rightRawImg.clone();
-
 		imgSize = leftImg.size();
-
-		//图像滤波预处理
-		resize(leftImg, leftMask, Size(200, 200));		//resize对原图像img重新调整大小生成mask图像大小为200*200
-		resize(rightImg, rightMask, Size(200, 200));
-		GaussianBlur(leftMask, leftMask, Size(13, 13), 7);   
-		GaussianBlur(rightMask, rightMask, Size(13, 13), 7); 
-		resize(leftMask, leftMask, imgSize);
-		resize(rightMask, rightMask, imgSize);
-		medianBlur(leftMask, leftMask, 9);    //中值滤波
-		medianBlur(rightMask, rightMask, 9);
-
-		for (int v = 0; v < imgSize.height; v++) {
-			for (int u = 0; u < imgSize.width; u++) {
-				int leftX = ((int)leftImg.at<uchar>(v, u) - (int)leftMask.at<uchar>(v, u)) * 2 + 128;
-				int rightX = ((int)rightImg.at<uchar>(v, u) - (int)rightMask.at<uchar>(v, u)) * 2 + 128;
-				leftImg.at<uchar>(v, u)  = max(min(leftX, 255), 0);
-				rightImg.at<uchar>(v, u) = max(min(rightX, 255), 0);
-			}
-		}
-
-		//寻找角点， 图像缩放
-		resize(leftImg, leftSimg, Size(), imgScale, imgScale);      //图像以0.5的比例缩放
-		resize(rightImg, rightSimg, Size(), imgScale, imgScale);
-		cvtColor(leftSimg, leftCimg, CV_GRAY2BGR);     //转为BGR图像，cimg和simg是800*600的图像
-		cvtColor(rightSimg, rightCimg, CV_GRAY2BGR);
-
-
-		//寻找棋盘角点
-		bool leftFound = findChessboardCorners(leftCimg, chessboardSize, leftPts, CV_CALIB_CB_ADAPTIVE_THRESH|CV_CALIB_CB_FILTER_QUADS);
-		bool rightFound = findChessboardCorners(rightCimg, chessboardSize, rightPts, CV_CALIB_CB_ADAPTIVE_THRESH|CV_CALIB_CB_FILTER_QUADS);
-
-		if(leftFound)
-			cornerSubPix(leftSimg, leftPts, Size(11, 11), Size(-1,-1 ), 
-			TermCriteria(CV_TERMCRIT_ITER + CV_TERMCRIT_EPS, 300, 0.01));
-		if(rightFound)
-			cornerSubPix(rightSimg, rightPts, Size(11, 11), Size(-1, -1), 
-			TermCriteria(CV_TERMCRIT_ITER + CV_TERMCRIT_EPS, 300, 0.01));   //亚像素
-
-		//放大为原来的尺度
-		for(uint j = 0;j < leftPts.size();j++) //该幅图像共132个角点，坐标乘以2，还原角点位置
-			leftPts[j] *= 1./imgScale;
-		for(uint j = 0;j < rightPts.size();j++)
-			rightPts[j] *= 1./imgScale;
-
-		//显示
-		string leftWindowName = "Left Corner Pic", rightWindowName = "Right Corner Pic";
-
-		Mat leftPtsTmp = Mat(leftPts) * imgScale;      //再次乘以 imgScale
-		Mat rightPtsTmp = Mat(rightPts) * imgScale;
-
-		drawChessboardCorners(leftCimg, chessboardSize, leftPtsTmp, leftFound);      //绘制角点坐标并显示
-		imshow(leftWindowName, leftCimg);
-		imwrite("输出/DrawChessBoard/"+std::to_string(i)+"_left.jpg", leftCimg);
-		waitKey(200);
-
-		drawChessboardCorners(rightCimg, chessboardSize, rightPtsTmp, rightFound);   //绘制角点坐标并显示
-		imshow(rightWindowName, rightCimg);
-		imwrite("输出/DrawChessBoard/"+std::to_string(i)+"_right.jpg", rightCimg);
-		waitKey(200);
-
-		cv::destroyAllWindows();
-
-		//保存角点坐标
-		if(leftFound && rightFound)   
-		{
-			imagePoints[0].push_back(leftPts);
-			imagePoints[1].push_back(rightPts);  //保存角点坐标
-			std::cout<<"图片 "<<i<<" 处理成功！"<<std::endl;
-			idx.push_back(i);
-		}
+		//图像预处理	
+		preBlurImage(leftImg, rightImg);
+		findchessboardCorners(this->getLeftImage(),this->getRightImage(),i);
 	}
 	cv::destroyAllWindows();
 	imagePoints[0].resize(idx.size());
@@ -225,7 +223,6 @@ void StereoCamera::stereoCalibrateCamera(std::string intrinsic_filename, std::st
 		objPts[i] = objPts[0];
 	}
 
-	//
 	// 双目立体标定
 	Mat cameraMatrix[2], distCoeffs[2];
 	vector<Mat> rvecs[2], tvecs[2]; 
@@ -250,14 +247,11 @@ void StereoCamera::stereoCalibrateCamera(std::string intrinsic_filename, std::st
 		imgSize, R, T, E, F,
 		TermCriteria(CV_TERMCRIT_ITER+CV_TERMCRIT_EPS, 100, 1e-5));
 	//CV_CALIB_USE_INTRINSIC_GUESS);
-
-
 	std::cout<<"立体标定完成！ "<<std::endl<<"done with RMS error=" << rms << std::endl;  //反向投影误差
 	std::cout<<"Left Camera Matrix: "<<std::endl<<cameraMatrix[0]<<std::endl;
 	std::cout<<"Right Camera Matrix："<<std::endl<<cameraMatrix[1]<<std::endl;
 	std::cout<<"Left Camera DistCoeffs: "<<std::endl<<distCoeffs[0]<<std::endl;
 	std::cout<<"Right Camera DistCoeffs: "<<std::endl<<distCoeffs[1]<<std::endl;
-
 
 	// 标定精度检测
 	// 通过检查图像上点与另一幅图像的极线的距离来评价标定的精度。为了实现这个目的，使用 undistortPoints 来对原始点做去畸变的处理
@@ -321,7 +315,7 @@ void StereoCamera::stereoCalibrateCamera(std::string intrinsic_filename, std::st
 }
 
 void StereoCamera::stereoMatch(int pic_num, std::string intrinsic_filename, 
-		             std::string extrinsic_filename, bool no_display, std::string point_cloud_filename, std::string distance_filename)
+							   std::string extrinsic_filename, bool no_display, std::string point_cloud_filename, std::string distance_filename)
 {
 	using namespace cv;
 	int color_mode = 0;
@@ -422,7 +416,7 @@ void StereoCamera::stereoMatch(int pic_num, std::string intrinsic_filename,
 
 	// 计算
 	Mat disp, disp8;
-	
+
 	bm(img1, img2, disp);
 	t = getTickCount() - t;
 	printf("BM立体匹配耗时: %fms\n", t*1000/getTickFrequency());
