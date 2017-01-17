@@ -31,6 +31,7 @@ void initFileList(string dir, int first, int last){
 	fileList.clear();
 	for(int cur = first; cur <= last; cur++){
 		string str_file = dir + "\\" + to_string(cur) + ".jpg";
+		
 		fileList.push_back(str_file);
 	}
 }
@@ -525,12 +526,13 @@ int main(){
 	string point_cloud_filename = "输出/point_test3D.txt";
 
 	/* 立体标定 运行一次即可 */
-	//initFileList("I:\\StereoCamera\\StereoCamera2\\StereoCamera2\\calib_pic2", 1, 12);
-	//stereoCalibrate(intrinsic_filename, extrinsic_filename); 
+	initFileList("I:\\StereoCamera\\StereoCamera2\\StereoCamera2\\calib_pic2", 1, 12);
+	stereoCalibrate(intrinsic_filename, extrinsic_filename); 
 
 	/* 立体匹配 */
-	initFileList("I:\\StereoCamera\\StereoCamera2\\StereoCamera2\\test_pic", 1, 2);
-	stereoMatch(0, intrinsic_filename, extrinsic_filename, false, point_cloud_filename);
+	
+	//initFileList("I:\\StereoCamera\\StereoCamera2\\StereoCamera2\\test_pic", 1, 2);
+	//stereoMatch(0, intrinsic_filename, extrinsic_filename, false, point_cloud_filename);
 
 	return 0;
 }

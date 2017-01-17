@@ -42,3 +42,5 @@ StereoCamera2/StereoCamera2/test_pic/
 *.etl
 *.pdb
 ~$Matlab和OpenCV的双目测距.docx
+StereoCamera2/StereoCameraClass/Release/
+StereoCamera2/StereoCameraClass/Debug/
