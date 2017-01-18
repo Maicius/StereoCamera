@@ -381,11 +381,11 @@ void StereoCamera::readingParameterMatrix(std::string intrinsic_filename, std::s
 	// reading extrinsic matrix
 	fs["R"] >> R;
 	fs["T"] >> T;
-	fs["R1"] >> R1;
-	fs["R2"] >> R2;
-	fs["P1"] >> P1;
-	fs["P2"] >> P2;
-	fs["Q"] >> Q;
+	//fs["R1"] >> R1;
+	//fs["R2"] >> R2;
+	//fs["P1"] >> P1;
+	//fs["P2"] >> P2;
+	//fs["Q"] >> Q;
 	fs.release();
 	time_t = getTickCount()-time_t;
 	std::cout<<"读参数耗时："<<getTimeSpended()<<std::endl;
@@ -423,7 +423,7 @@ void StereoCamera::stereoMatch(int pic_num, bool no_display, std::string point_c
 
 	Size img_size = img1.size();
 	time_t = getTickCount();
-	Mat R1, P1, R2, P2, Q;
+	//Mat R1, P1, R2, P2, Q;
 	//Alpha取值为-1时，OpenCV自动进行缩放和平移
 	cv::stereoRectify(M1, D1, M2, D2, img_size, R, T, R1, R2, P1, P2, Q, CALIB_ZERO_DISPARITY, -1, img_size, &roi1, &roi2 );
 	//cv::FileStorage fs("test.yml",CV_STORAGE_WRITE);
@@ -432,7 +432,7 @@ void StereoCamera::stereoMatch(int pic_num, bool no_display, std::string point_c
 	//fs <<"P1"<<_P1;
 	//fs <<"this P1"<< P1;
 	//fs.release();
-	//time_t = getTickCount()-time_t;
+	time_t = getTickCount()-time_t;
 	std::cout<<"立体校正耗时："<<getTimeSpended()<<std::endl;
 	 //获取两相机的矫正映射
 	time_t = getTickCount();
