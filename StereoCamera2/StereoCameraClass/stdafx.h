@@ -9,8 +9,6 @@
 #include <iostream>
 #include <fstream>
 #include <vector>
-#include <list>
-#include <algorithm>
 #include <iterator>
 #include <cstdio>
 #include <string>

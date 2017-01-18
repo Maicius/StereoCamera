@@ -10,7 +10,7 @@ public:
 		chessboardSize.height = 6;
 		chessboardSize.width = 9;
 		chessboardLength = 19.1f;
-		imgScale = 0.5;
+		imgScale = 1;
 		time_t = cvGetTickCount();
 	}
 	~StereoCamera(){};
@@ -53,6 +53,11 @@ public:
 	cv::Mat getLeftImage(){ return leftImage;}
 	double getTimeSpended(){return time_t*1000/cv::getTickFrequency();}
 	cv::Mat getRightImage(){return rightImage;}
+	double getChessboardLength(){return chessboardLength;}
+
+	void setChessboardLength(double length){ this->chessboardLength = length;}
+	void setLeftImg(cv::Mat left_img){this->leftImage = left_img;}
+	void setRightImg(cv::Mat right_img){this->rightImage = right_img;}
 
 private:
 	cv::Mat leftImage;

@@ -108,7 +108,7 @@ void StereoCamera::findchessboardCorners(cv::Mat leftImg, cv::Mat rightImg, uint
 	using namespace cv;	
 	vector<Point2f> leftPts, rightPts;      // 存储左右相机的角点位置
 	Mat leftSimg, rightSimg, leftCimg, rightCimg;
-	resize(leftImg, leftSimg, Size(), imgScale, imgScale);      //图像以0.5的比例缩放
+	resize(leftImg, leftSimg, Size(), imgScale, imgScale);      //图像以imgScale的比例缩放
 	resize(rightImg, rightSimg, Size(), imgScale, imgScale);
 	cvtColor(leftSimg, leftCimg, CV_GRAY2BGR);     //转为BGR图像，cimg和simg是800*600的图像
 	cvtColor(rightSimg, rightCimg, CV_GRAY2BGR);
@@ -157,10 +157,12 @@ void StereoCamera::preBlurImage(cv::Mat leftImg, cv::Mat rightImg)
 {
 	using namespace cv;
 	Mat leftMask, rightMask;
-	resize(leftImg, leftMask, Size(200, 200));		//resize对原图像img重新调整大小生成mask图像大小为200*200
+	//imwrite("原始左图像.jpg",leftImg);
+	//resize对原图像img重新调整大小生成mask图像大小为200*200
+	resize(leftImg, leftMask, Size(200, 200));		
 	resize(rightImg, rightMask, Size(200, 200));
-	GaussianBlur(leftMask, leftMask, Size(13, 13), 7);   
-	GaussianBlur(rightMask, rightMask, Size(13, 13), 7); 
+	GaussianBlur(leftMask, leftMask, Size(15, 15), 7);  //高斯滤波 
+	GaussianBlur(rightMask, rightMask, Size(15, 15), 7); 
 	resize(leftMask, leftMask, imgSize);
 	resize(rightMask, rightMask, imgSize);
 	medianBlur(leftMask, leftMask, 9);    //中值滤波
@@ -174,8 +176,7 @@ void StereoCamera::preBlurImage(cv::Mat leftImg, cv::Mat rightImg)
 			rightImg.at<uchar>(v, u) = max(min(rightX, 255), 0);
 		}
 	}
-	this->leftImage = leftImg;
-	this->rightImage = rightImg;
+	//imwrite("预处理后左图像.jpg",leftImage);
 }
 
 void StereoCamera::writeParameterMatrix(std::string intrinsic_filename, std::string extrinsic_filename, 
@@ -214,9 +215,10 @@ void StereoCamera::stereoCalibrateCamera(std::string intrinsic_filename, std::st
 		}
 		//截取左右图片
 		tailImage(rawImg);
+
 		Mat leftRawImg = getLeftImage();      
 		Mat rightRawImg = getRightImage();    
-		Mat leftImg, rightImg, leftSimg, rightSimg, leftCimg, rightCimg, leftMask, rightMask;
+		Mat leftImg, rightImg;
 		// BGT -> GRAY	
 		if(leftRawImg.type() == CV_8UC3)
 			cvtColor(leftRawImg, leftImg, CV_BGR2GRAY);  //转为灰度图
@@ -226,10 +228,13 @@ void StereoCamera::stereoCalibrateCamera(std::string intrinsic_filename, std::st
 			cvtColor(rightRawImg, rightImg, CV_BGR2GRAY); 
 		else
 			rightImg = rightRawImg.clone();
-		imgSize = leftImg.size();
-		//图像预处理	
-		preBlurImage(leftImg, rightImg);
-		findchessboardCorners(this->getLeftImage(),this->getRightImage(),i);
+		imgSize = getLeftImage().size();
+		printf("图像预处理...\n");
+		//图像预处理
+		setLeftImg(leftImg);
+		setRightImg(rightImg);
+		preBlurImage(leftImage, leftImage);
+		findchessboardCorners(leftImage,leftImage,i);
 	}
 	cv::destroyAllWindows();
 	this->imagePoints[0].resize(this->idx.size());
@@ -238,13 +243,14 @@ void StereoCamera::stereoCalibrateCamera(std::string intrinsic_filename, std::st
 	for(unsigned int i = 0;i < idx.size();++i)
 		std::cout<<idx[i]<<"  ";
 
-	//生成物点坐标
+	//生成一张图片中的物点坐标
 	vector<vector<Point3f>> objPts(idx.size());  //idx.size代表成功检测的图像的个数
 	for (int y = 0; y < chessboardSize.height; y++) {
 		for (int x = 0; x < chessboardSize.width; x++) {
-			objPts[0].push_back(Point3f((float)x, (float)y, 0) * chessboardLength);
+			objPts[0].push_back(Point3f((float)x, (float)y, 0) * getChessboardLength());
 		}
 	}
+	//将第一张图片中的角点坐标复制给所有图片
 	for (uint i = 1; i < objPts.size(); i++) {
 		objPts[i] = objPts[0];
 	}
@@ -257,11 +263,6 @@ void StereoCamera::stereoCalibrateCamera(std::string intrinsic_filename, std::st
 
 	cv::calibrateCamera(objPts, imagePoints[1], imgSize, cameraMatrix[1],    
 		distCoeffs[1], rvecs[1], tvecs[1], CV_CALIB_FIX_K3);
-
-	std::cout<<"Left Camera Matrix: "<<std::endl<<cameraMatrix[0]<<std::endl;
-	std::cout<<"Right Camera Matrix："<<std::endl<<cameraMatrix[1]<<std::endl;
-	std::cout<<"Left Camera DistCoeffs: "<<std::endl<<distCoeffs[0]<<std::endl;
-	std::cout<<"Right Camera DistCoeffs: "<<std::endl<<distCoeffs[1]<<std::endl;
 
 	double rms = stereoCalibrate(objPts, imagePoints[0], imagePoints[1],
 		cameraMatrix[0], distCoeffs[0],
@@ -314,7 +315,7 @@ void StereoCamera::stereoCameraRectify(cv::Mat cameraMatrix[2], cv::Mat distCoef
 {
 	using namespace cv;
 	// 立体矫正  BOUGUET'S METHOD
-	Mat R1, R2, P1, P2, Q;
+	//Mat R1, R2, P1, P2, Q;
 	Rect validRoi[2];
 
 	cv::stereoRectify(cameraMatrix[0], distCoeffs[0],
@@ -405,6 +406,7 @@ void StereoCamera::stereoMatch(int pic_num, bool no_display, std::string point_c
 	tailImage(rawImg);
 	Mat img1 = getLeftImage();       //切分得到的左原始图像
 	Mat img2 = getRightImage();      //切分得到的右原始图像
+
 	//图像根据比例缩放
 	if(imgScale != 1.f){
 		time_t = getTickCount();
