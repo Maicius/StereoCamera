@@ -152,6 +152,7 @@ void StereoCamera::findchessboardCorners(cv::Mat leftImg, cv::Mat rightImg, uint
 		idx.push_back(i);
 	}
 }
+
 void StereoCamera::preBlurImage(cv::Mat leftImg, cv::Mat rightImg)
 {
 	using namespace cv;
@@ -176,6 +177,31 @@ void StereoCamera::preBlurImage(cv::Mat leftImg, cv::Mat rightImg)
 	this->leftImage = leftImg;
 	this->rightImage = rightImg;
 }
+
+void StereoCamera::writeParameterMatrix(std::string intrinsic_filename, std::string extrinsic_filename, 
+										cv::Mat R1, cv::Mat R2, cv::Mat P1, cv::Mat P2, cv::Mat Q)
+{
+	cv::FileStorage fs(intrinsic_filename, CV_STORAGE_WRITE);
+	if(fs.isOpened())
+	{
+		fs << "M1" << cameraMatrix[0] << "D1" << distCoeffs[0] <<
+			"M2" << cameraMatrix[1] << "D2" << distCoeffs[1];
+		fs.release();
+	}
+	else
+		std::cout << "Error: can not save the intrinsic parameters\n";
+	fs.open(extrinsic_filename, CV_STORAGE_WRITE);
+	if( fs.isOpened() )
+	{
+		fs << "R" << R << "T" << T << "R1" << R1 << "R2" << R2 << "P1" << P1 << "P2" << P2 << "Q" << Q;
+		fs.release();
+	}
+	else{
+		std::cout << "Error: can not save the intrinsic parameters\n";
+		exit(4);
+	}
+}
+
 void StereoCamera::stereoCalibrateCamera(std::string intrinsic_filename, std::string extrinsic_filename)
 {
 	using namespace cv;
@@ -206,8 +232,8 @@ void StereoCamera::stereoCalibrateCamera(std::string intrinsic_filename, std::st
 		findchessboardCorners(this->getLeftImage(),this->getRightImage(),i);
 	}
 	cv::destroyAllWindows();
-	imagePoints[0].resize(idx.size());
-	imagePoints[1].resize(idx.size());
+	this->imagePoints[0].resize(this->idx.size());
+	this->imagePoints[1].resize(this->idx.size());
 	std::cout<<"成功标定的标定板个数为"<<idx.size()<<"  序号分别为: ";
 	for(unsigned int i = 0;i < idx.size();++i)
 		std::cout<<idx[i]<<"  ";
@@ -222,14 +248,10 @@ void StereoCamera::stereoCalibrateCamera(std::string intrinsic_filename, std::st
 	for (uint i = 1; i < objPts.size(); i++) {
 		objPts[i] = objPts[0];
 	}
-
-	// 双目立体标定
-	Mat cameraMatrix[2], distCoeffs[2];
+	// 双目立体标定	
 	vector<Mat> rvecs[2], tvecs[2]; 
 	cameraMatrix[0] = Mat::eye(3, 3, CV_64F);
 	cameraMatrix[1] = Mat::eye(3, 3, CV_64F);
-	Mat R, T, E, F;
-
 	cv::calibrateCamera(objPts, imagePoints[0], imgSize, cameraMatrix[0],    
 		distCoeffs[0], rvecs[0], tvecs[0], CV_CALIB_FIX_K3);
 
@@ -248,26 +270,30 @@ void StereoCamera::stereoCalibrateCamera(std::string intrinsic_filename, std::st
 		TermCriteria(CV_TERMCRIT_ITER+CV_TERMCRIT_EPS, 100, 1e-5));
 	//CV_CALIB_USE_INTRINSIC_GUESS);
 	std::cout<<"立体标定完成！ "<<std::endl<<"done with RMS error=" << rms << std::endl;  //反向投影误差
+
 	std::cout<<"Left Camera Matrix: "<<std::endl<<cameraMatrix[0]<<std::endl;
 	std::cout<<"Right Camera Matrix："<<std::endl<<cameraMatrix[1]<<std::endl;
 	std::cout<<"Left Camera DistCoeffs: "<<std::endl<<distCoeffs[0]<<std::endl;
 	std::cout<<"Right Camera DistCoeffs: "<<std::endl<<distCoeffs[1]<<std::endl;
+	accuracyCheck();
+	stereoCameraRectify(cameraMatrix, distCoeffs, intrinsic_filename, extrinsic_filename);
+	std::cout<<"双目标定完成..."<<std::endl;
+}
 
-	// 标定精度检测
-	// 通过检查图像上点与另一幅图像的极线的距离来评价标定的精度。为了实现这个目的，使用 undistortPoints 来对原始点做去畸变的处理
-	// 随后使用 computeCorrespondEpilines 来计算极线，计算点和线的点积。累计的绝对误差形成了误差
+void StereoCamera::accuracyCheck()
+{
 	std::cout<<" 极线计算...  误差计算... "<<std::endl;
 	double err = 0;
 	int npoints = 0;
-	vector<Vec3f> lines[2];
+	std::vector<cv::Vec3f> lines[2];
 	for(unsigned int i = 0; i < idx.size(); i++)
 	{
 		int npt = (int)imagePoints[0][i].size();  //角点个数
-		Mat imgpt[2];
+		cv::Mat imgpt[2];
 		for(int k = 0; k < 2; k++ )
 		{
-			imgpt[k] = Mat(imagePoints[k][i]);  //
-			undistortPoints(imgpt[k], imgpt[k], cameraMatrix[k], distCoeffs[k], Mat(), cameraMatrix[k]); // 畸变
+			imgpt[k] = cv::Mat(imagePoints[k][i]);  //
+			undistortPoints(imgpt[k], imgpt[k], cameraMatrix[k], distCoeffs[k], cv::Mat(), cameraMatrix[k]); // 畸变
 			computeCorrespondEpilines(imgpt[k], k+1, F, lines[k]);  // 计算极线
 		}
 		for(int j = 0; j < npt; j++ )
@@ -281,18 +307,12 @@ void StereoCamera::stereoCalibrateCamera(std::string intrinsic_filename, std::st
 		npoints += npt;
 	}
 	std::cout << "  平均误差 average reprojection err = " <<  err/npoints << std::endl;  // 平均误差
+}
 
-	// 相机内参数和畸变系数写入文件
-	FileStorage fs(intrinsic_filename, CV_STORAGE_WRITE);
-	if(fs.isOpened())
-	{
-		fs << "M1" << cameraMatrix[0] << "D1" << distCoeffs[0] <<
-			"M2" << cameraMatrix[1] << "D2" << distCoeffs[1];
-		fs.release();
-	}
-	else
-		std::cout << "Error: can not save the intrinsic parameters\n";
-
+void StereoCamera::stereoCameraRectify(cv::Mat cameraMatrix[2], cv::Mat distCoeffs[2], 
+									   std::string intrinsic_filename, std::string extrinsic_filename)
+{
+	using namespace cv;
 	// 立体矫正  BOUGUET'S METHOD
 	Mat R1, R2, P1, P2, Q;
 	Rect validRoi[2];
@@ -301,104 +321,14 @@ void StereoCamera::stereoCalibrateCamera(std::string intrinsic_filename, std::st
 		cameraMatrix[1], distCoeffs[1],
 		imgSize, R, T, R1, R2, P1, P2, Q,
 		CALIB_ZERO_DISPARITY, 1, imgSize, &validRoi[0], &validRoi[1]);
-
-	fs.open(extrinsic_filename, CV_STORAGE_WRITE);
-	if( fs.isOpened() )
-	{
-		fs << "R" << R << "T" << T << "R1" << R1 << "R2" << R2 << "P1" << P1 << "P2" << P2 << "Q" << Q;
-		fs.release();
-	}
-	else
-		std::cout << "Error: can not save the intrinsic parameters\n";
-
-	std::cout<<"双目标定完成..."<<std::endl;
+	writeParameterMatrix(intrinsic_filename, extrinsic_filename, 
+						R1, R2, P1, P2, Q);
+	std::cout<<"双目校正完成"<<std::endl;
 }
 
-void StereoCamera::stereoMatch(int pic_num, std::string intrinsic_filename, 
-							   std::string extrinsic_filename, bool no_display, std::string point_cloud_filename, std::string distance_filename)
+void StereoCamera::BMstereoMatch(cv::Mat left_img, cv::Mat right_img, cv::Mat disp, cv::Mat disp8)
 {
-	using namespace cv;
-	int color_mode = 0;
-	Mat rawImg = imread(picFileList[pic_num], color_mode);    //待处理图像  grayScale
-	if(rawImg.empty()){
-		std::cout<<"In Function stereoMatch, the Image is empty..."<<std::endl;
-		exit(-1);
-	}
-	//截取
-	int64 time_t  = getTickCount();
-	Rect leftRect(0, 0, imgSize.width, imgSize.height);
-	Rect rightRect(imgSize.width, 0, imgSize.width, imgSize.height);
-	Mat img1 = rawImg(leftRect);       //切分得到的左原始图像
-	Mat img2 = rawImg(rightRect);      //切分得到的右原始图像
-	time_t = getTickCount() - time_t;
-	printf("裁剪图像耗时：%fms\n",time_t*1000/getTickFrequency());
-	//图像根据比例缩放
-	if(imgScale != 1.f){
-		time_t = getTickCount();
-		Mat temp1, temp2;
-		int method = imgScale < 1 ? INTER_AREA : INTER_CUBIC;
-		resize(img1, temp1, Size(), imgScale, imgScale, method);
-		img1 = temp1;
-		resize(img2, temp2, Size(), imgScale, imgScale, method);
-		img2 = temp2;
-		time_t = getTickCount() - time_t;
-		printf("缩放图像耗时：%fms\n", time_t*1000/getTickFrequency());
-	}
-	imwrite("输出/原始左图像.jpg", img1);
-	imwrite("输出/原始右图像.jpg", img2);
-
-	Size img_size = img1.size();
-
-	// reading intrinsic parameters
-	FileStorage fs(intrinsic_filename, CV_STORAGE_READ);
-	if(!fs.isOpened())
-	{
-		std::cout<<"Failed to open file "<<intrinsic_filename<<std::endl;
-		exit(0);
-	}
-	Mat M1, D1, M2, D2;      //左右相机的内参数矩阵和畸变系数
-	fs["M1"] >> M1;
-	fs["D1"] >> D1;
-	fs["M2"] >> M2;
-	fs["D2"] >> D2;
-
-	M1 *= imgScale;
-	M2 *= imgScale;
-	time_t = getTickCount();
-	// 读取双目相机的立体矫正参数
-	fs.open(std::string(extrinsic_filename), CV_STORAGE_READ);
-	if(!fs.isOpened())
-	{
-		std::cout<<"Failed to open file  "<<std::string(extrinsic_filename)<<std::endl;
-		exit(1);
-	}
-
-	// 立体矫正
-	Rect roi1, roi2;
-	Mat Q;
-	Mat R, T, R1, P1, R2, P2;
-	fs["R"] >> R;
-	fs["T"] >> T;
-
-	//Alpha取值为-1时，OpenCV自动进行缩放和平移
-	cv::stereoRectify( M1, D1, M2, D2, img_size, R, T, R1, R2, P1, P2, Q, CALIB_ZERO_DISPARITY, -1, img_size, &roi1, &roi2 );
-
-	// 获取两相机的矫正映射
-	Mat map11, map12, map21, map22;
-	initUndistortRectifyMap(M1, D1, R1, P1, img_size, CV_16SC2, map11, map12);
-	initUndistortRectifyMap(M2, D2, R2, P2, img_size, CV_16SC2, map21, map22);
-
-	// 矫正原始图像
-	Mat img1r, img2r;
-	remap(img1, img1r, map11, map12, INTER_LINEAR);
-	remap(img2, img2r, map21, map22, INTER_LINEAR);
-	img1 = img1r;
-	img2 = img2r;
-	time_t = getTickCount() - time_t;
-	printf("立体校正耗时：%fms\n",time_t*1000/getTickFrequency());
-	// 初始化 stereoBMstate 结构体
-	int64 t = getTickCount();
-	StereoBM bm;
+	cv::StereoBM bm;
 
 	int unitDisparity = 15;//40
 	int numberOfDisparities = unitDisparity * 16;
@@ -414,22 +344,123 @@ void StereoCamera::stereoMatch(int pic_num, std::string intrinsic_filename,
 	bm.state->speckleRange = 32;    //32                                  // 视差变化阈值，当窗口内视差变化大于阈值时，该窗口内的视差清零，int 型
 	bm.state->disp12MaxDiff = -1;
 
-	// 计算
-	Mat disp, disp8;
-
-	bm(img1, img2, disp);
-	t = getTickCount() - t;
-	printf("BM立体匹配耗时: %fms\n", t*1000/getTickFrequency());
+	bm(left_img, right_img, disp);
 
 	// 将16位符号整形的视差矩阵转换为8位无符号整形矩阵
 	disp.convertTo(disp8, CV_8U, 255/(numberOfDisparities*16.));
+	this->disp = disp;
+	this->disp8 = disp8;
+}
 
+void StereoCamera::readingParameterMatrix(std::string intrinsic_filename, std::string extrinsic_filename)
+{
+	using namespace cv;
+	time_t = getTickCount();
+	// reading intrinsic parameters
+	FileStorage fs(intrinsic_filename, CV_STORAGE_READ);
+	if(!fs.isOpened())
+	{
+		std::cout<<"Failed to open file "<<intrinsic_filename<<std::endl;
+		exit(0);
+	}
+	fs["M1"] >> M1;
+	fs["D1"] >> D1;
+	fs["M2"] >> M2;
+	fs["D2"] >> D2;
+	fs.release();
+	M1 *= imgScale;
+	M2 *= imgScale;
+
+	// 读取双目相机的立体矫正参数
+	fs.open(extrinsic_filename, CV_STORAGE_READ);
+	if(!fs.isOpened())
+	{
+		std::cout<<"Failed to open file  "<<extrinsic_filename<<std::endl;
+		exit(1);
+	}
+	// reading extrinsic matrix
+	fs["R"] >> R;
+	fs["T"] >> T;
+	fs["R1"] >> R1;
+	fs["R2"] >> R2;
+	fs["P1"] >> P1;
+	fs["P2"] >> P2;
+	fs["Q"] >> Q;
+	fs.release();
+	time_t = getTickCount()-time_t;
+	std::cout<<"读参数耗时："<<getTimeSpended()<<std::endl;
+	std::cout<<"Reading parameters finished...\n";
+}
+
+void StereoCamera::stereoMatch(int pic_num, bool no_display, std::string point_cloud_filename, std::string distance_filename)
+{
+	using namespace cv;
+	int color_mode = 0;
+	Mat rawImg = imread(picFileList[pic_num], color_mode);    //待处理图像  grayScale
+	if(rawImg.empty()){
+		std::cout<<"In Function stereoMatch, the Image is empty..."<<std::endl;
+		exit(-1);
+	}
+	//截取
+	tailImage(rawImg);
+	Mat img1 = getLeftImage();       //切分得到的左原始图像
+	Mat img2 = getRightImage();      //切分得到的右原始图像
+	//图像根据比例缩放
+	if(imgScale != 1.f){
+		time_t = getTickCount();
+		Mat temp1, temp2;
+		int method = imgScale < 1 ? INTER_AREA : INTER_CUBIC;
+		resize(img1, temp1, Size(), imgScale, imgScale, method);
+		img1 = temp1;
+		resize(img2, temp2, Size(), imgScale, imgScale, method);
+		img2 = temp2;
+		time_t = getTickCount() - time_t;
+		printf("缩放图像耗时：%fms\n", getTimeSpended());
+	}
+
+	imwrite("输出/原始左图像.jpg", img1);
+	imwrite("输出/原始右图像.jpg", img2);
+
+	Size img_size = img1.size();
+	time_t = getTickCount();
+	Mat R1, P1, R2, P2, Q;
+	//Alpha取值为-1时，OpenCV自动进行缩放和平移
+	cv::stereoRectify(M1, D1, M2, D2, img_size, R, T, R1, R2, P1, P2, Q, CALIB_ZERO_DISPARITY, -1, img_size, &roi1, &roi2 );
+	//cv::FileStorage fs("test.yml",CV_STORAGE_WRITE);
+	//fs <<"R1"<<_R1;
+	//fs <<"this R1"<<R1;
+	//fs <<"P1"<<_P1;
+	//fs <<"this P1"<< P1;
+	//fs.release();
+	//time_t = getTickCount()-time_t;
+	std::cout<<"立体校正耗时："<<getTimeSpended()<<std::endl;
+	 //获取两相机的矫正映射
+	time_t = getTickCount();
+	Mat map11, map12, map21, map22;
+	initUndistortRectifyMap(M1, D1, R1, P1, img_size, CV_16SC2, map11, map12);
+	initUndistortRectifyMap(M2, D2, R2, P2, img_size, CV_16SC2, map21, map22);
+	time_t = getTickCount()-time_t;
+	printf("获取矫正映射耗时：%fms\n",getTimeSpended());
+	// 矫正原始图像
+	time_t = getTickCount();
+	Mat img1r, img2r;
+	remap(img1, img1r, map11, map12, INTER_LINEAR);
+	remap(img2, img2r, map21, map22, INTER_LINEAR);
+	img1 = img1r;
+	img2 = img2r;
+	time_t = getTickCount() - time_t;
+	printf("矫正映射耗时：%fms\n",getTimeSpended());
+	int64 t = getTickCount();
+	// 使用BM算法匹配
+	Mat disp_8, disp;
+	BMstereoMatch(img1, img2, disp, disp_8);
+	t = getTickCount() - t;
+	printf("BM立体匹配耗时: %fms\n", t*1000/getTickFrequency());
 	// 视差图转为彩色图
-	Mat vdispRGB = disp8;
+	Mat vdispRGB = this->disp8;
 	fromGrayToColor(disp8, vdispRGB);
 	// 将左侧矫正图像与视差图融合
 	Mat merge_mat = mergeImg(img1, disp8);
-
 	saveParallaxPic("输出/视差数据.txt", disp);
 
 	//显示
@@ -451,7 +482,6 @@ void StereoCamera::stereoMatch(int pic_num, std::string intrinsic_filename,
 		std::cout<<std::endl;
 	}
 	cv::destroyAllWindows();
-
 	// 视差图转为深度图
 	std::cout<<"计算深度映射... "<<std::endl;
 	Mat xyz;
@@ -459,8 +489,6 @@ void StereoCamera::stereoMatch(int pic_num, std::string intrinsic_filename,
 	cv::destroyAllWindows(); 
 	std::cout<<"保存点云坐标... "<<std::endl;
 	saveCloudPoints(point_cloud_filename, distance_filename, xyz);
-
 	std::cout<<std::endl<<"结束"<<std::endl<<"Press any key to end... ";
-
 	getchar(); 
 }
