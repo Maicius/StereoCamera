@@ -73,8 +73,7 @@ private:
 	std::vector<int> idx;
 	cv::Mat cameraMatrix[2], distCoeffs[2];
 	cv::Mat R, T, E, F;
-	cv::Mat M1, D1, M2, D2,R1, R2, P1, P2, Q;
+	cv::Mat M1, D1, M2, D2;
 	int64 time_t;
-	cv::Rect roi1, roi2;
-	cv::Mat disp, disp8;
+	
 };

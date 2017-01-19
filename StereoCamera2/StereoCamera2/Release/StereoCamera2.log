@@ -1,4 +1,4 @@
-﻿生成启动时间为 2017/1/17 20:34:17。
+﻿生成启动时间为 2017/1/19 17:01:16。
      1>项目“I:\StereoCamera\StereoCamera2\StereoCamera2\StereoCamera2.vcxproj”在节点 2 上(Build 个目标)。
      1>ClCompile:
          E:\VisualStudio2012\VC\bin\CL.exe /c /I"E:\AA实验室\SDK\OpenCV\include" /Zi /nologo /W3 /WX- /O2 /Oi /Oy- /GL /D _MBCS /Gm- /EHsc /MD /GS /Gy /fp:precise /Zc:wchar_t /Zc:forScope /Fo"Release\\" /Fd"Release\vc110.pdb" /Gd /TP /analyze- /errorReport:prompt stereo_calib_match.cpp
@@ -12,4 +12,4 @@
 
 生成成功。
 
-已用时间 00:00:02.93
+已用时间 00:00:04.76

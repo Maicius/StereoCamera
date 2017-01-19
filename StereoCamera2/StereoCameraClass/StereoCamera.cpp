@@ -233,8 +233,8 @@ void StereoCamera::stereoCalibrateCamera(std::string intrinsic_filename, std::st
 		//图像预处理
 		setLeftImg(leftImg);
 		setRightImg(rightImg);
-		preBlurImage(leftImage, leftImage);
-		findchessboardCorners(leftImage,leftImage,i);
+		preBlurImage(leftImage, rightImage);
+		findchessboardCorners(leftImage,rightImage,i);
 	}
 	cv::destroyAllWindows();
 	this->imagePoints[0].resize(this->idx.size());
@@ -293,7 +293,7 @@ void StereoCamera::accuracyCheck()
 		cv::Mat imgpt[2];
 		for(int k = 0; k < 2; k++ )
 		{
-			imgpt[k] = cv::Mat(imagePoints[k][i]);  //
+			imgpt[k] = cv::Mat(imagePoints[k][i]); 
 			undistortPoints(imgpt[k], imgpt[k], cameraMatrix[k], distCoeffs[k], cv::Mat(), cameraMatrix[k]); // 畸变
 			computeCorrespondEpilines(imgpt[k], k+1, F, lines[k]);  // 计算极线
 		}
@@ -315,7 +315,7 @@ void StereoCamera::stereoCameraRectify(cv::Mat cameraMatrix[2], cv::Mat distCoef
 {
 	using namespace cv;
 	// 立体矫正  BOUGUET'S METHOD
-	//Mat R1, R2, P1, P2, Q;
+	Mat R1, R2, P1, P2, Q;
 	Rect validRoi[2];
 
 	cv::stereoRectify(cameraMatrix[0], distCoeffs[0],
@@ -323,35 +323,10 @@ void StereoCamera::stereoCameraRectify(cv::Mat cameraMatrix[2], cv::Mat distCoef
 		imgSize, R, T, R1, R2, P1, P2, Q,
 		CALIB_ZERO_DISPARITY, 1, imgSize, &validRoi[0], &validRoi[1]);
 	writeParameterMatrix(intrinsic_filename, extrinsic_filename, 
-						R1, R2, P1, P2, Q);
+		R1, R2, P1, P2, Q);
 	std::cout<<"双目校正完成"<<std::endl;
 }
 
-void StereoCamera::BMstereoMatch(cv::Mat left_img, cv::Mat right_img, cv::Mat disp, cv::Mat disp8)
-{
-	cv::StereoBM bm;
-
-	int unitDisparity = 15;//40
-	int numberOfDisparities = unitDisparity * 16;
-	bm.state->roi1 = roi1;
-	bm.state->roi2 = roi2;
-	bm.state->preFilterCap = 13;
-	bm.state->SADWindowSize = 19;                                     // 窗口大小
-	bm.state->minDisparity = 0;                                       // 确定匹配搜索从哪里开始  默认值是0
-	bm.state->numberOfDisparities = numberOfDisparities;                // 在该数值确定的视差范围内进行搜索
-	bm.state->textureThreshold = 1000;//10                                  // 保证有足够的纹理以克服噪声
-	bm.state->uniquenessRatio = 1;     //10                               // !!使用匹配功能模式
-	bm.state->speckleWindowSize = 200;   //13                             // 检查视差连通区域变化度的窗口大小, 值为 0 时取消 speckle 检查
-	bm.state->speckleRange = 32;    //32                                  // 视差变化阈值，当窗口内视差变化大于阈值时，该窗口内的视差清零，int 型
-	bm.state->disp12MaxDiff = -1;
-
-	bm(left_img, right_img, disp);
-
-	// 将16位符号整形的视差矩阵转换为8位无符号整形矩阵
-	disp.convertTo(disp8, CV_8U, 255/(numberOfDisparities*16.));
-	this->disp = disp;
-	this->disp8 = disp8;
-}
 
 void StereoCamera::readingParameterMatrix(std::string intrinsic_filename, std::string extrinsic_filename)
 {
@@ -368,7 +343,7 @@ void StereoCamera::readingParameterMatrix(std::string intrinsic_filename, std::s
 	fs["D1"] >> D1;
 	fs["M2"] >> M2;
 	fs["D2"] >> D2;
-	fs.release();
+	fs.release(); 
 	M1 *= imgScale;
 	M2 *= imgScale;
 
@@ -382,11 +357,6 @@ void StereoCamera::readingParameterMatrix(std::string intrinsic_filename, std::s
 	// reading extrinsic matrix
 	fs["R"] >> R;
 	fs["T"] >> T;
-	//fs["R1"] >> R1;
-	//fs["R2"] >> R2;
-	//fs["P1"] >> P1;
-	//fs["P2"] >> P2;
-	//fs["Q"] >> Q;
 	fs.release();
 	time_t = getTickCount()-time_t;
 	std::cout<<"读参数耗时："<<getTimeSpended()<<std::endl;
@@ -398,6 +368,8 @@ void StereoCamera::stereoMatch(int pic_num, bool no_display, std::string point_c
 	using namespace cv;
 	int color_mode = 0;
 	Mat rawImg = imread(picFileList[pic_num], color_mode);    //待处理图像  grayScale
+	//imshow("rawImg_1",rawImg);
+	waitKey();
 	if(rawImg.empty()){
 		std::cout<<"In Function stereoMatch, the Image is empty..."<<std::endl;
 		exit(-1);
@@ -406,7 +378,7 @@ void StereoCamera::stereoMatch(int pic_num, bool no_display, std::string point_c
 	tailImage(rawImg);
 	Mat img1 = getLeftImage();       //切分得到的左原始图像
 	Mat img2 = getRightImage();      //切分得到的右原始图像
-
+	//imshow("LeftRaw", img1);
 	//图像根据比例缩放
 	if(imgScale != 1.f){
 		time_t = getTickCount();
@@ -424,42 +396,60 @@ void StereoCamera::stereoMatch(int pic_num, bool no_display, std::string point_c
 	imwrite("输出/原始右图像.jpg", img2);
 
 	Size img_size = img1.size();
-	time_t = getTickCount();
-	//Mat R1, P1, R2, P2, Q;
+	//time_t = getTickCount();
+	Mat R1, P1, R2, P2, Q;
+	cv::Rect roi1, roi2;
 	//Alpha取值为-1时，OpenCV自动进行缩放和平移
 	cv::stereoRectify(M1, D1, M2, D2, img_size, R, T, R1, R2, P1, P2, Q, CALIB_ZERO_DISPARITY, -1, img_size, &roi1, &roi2 );
-	//cv::FileStorage fs("test.yml",CV_STORAGE_WRITE);
-	//fs <<"R1"<<_R1;
-	//fs <<"this R1"<<R1;
-	//fs <<"P1"<<_P1;
-	//fs <<"this P1"<< P1;
-	//fs.release();
-	time_t = getTickCount()-time_t;
-	std::cout<<"立体校正耗时："<<getTimeSpended()<<std::endl;
-	 //获取两相机的矫正映射
-	time_t = getTickCount();
+	//time_t = getTickCount()-time_t;
+	//std::cout<<"立体校正耗时："<<getTimeSpended()<<std::endl;
+	// //获取两相机的矫正映射
+	//time_t = getTickCount();
 	Mat map11, map12, map21, map22;
 	initUndistortRectifyMap(M1, D1, R1, P1, img_size, CV_16SC2, map11, map12);
 	initUndistortRectifyMap(M2, D2, R2, P2, img_size, CV_16SC2, map21, map22);
-	time_t = getTickCount()-time_t;
-	printf("获取矫正映射耗时：%fms\n",getTimeSpended());
-	// 矫正原始图像
-	time_t = getTickCount();
+	//time_t = getTickCount()-time_t;
+	//printf("获取矫正映射耗时：%fms\n",getTimeSpended());
+	//// 矫正原始图像
+	//time_t = getTickCount();
 	Mat img1r, img2r;
 	remap(img1, img1r, map11, map12, INTER_LINEAR);
 	remap(img2, img2r, map21, map22, INTER_LINEAR);
+	imshow("校正前",img1);
+	imshow("校正后", img1r);
+	//waitKey();
 	img1 = img1r;
 	img2 = img2r;
-	time_t = getTickCount() - time_t;
-	printf("矫正映射耗时：%fms\n",getTimeSpended());
+	//time_t = getTickCount() - time_t;
+	//printf("矫正映射耗时：%fms\n",getTimeSpended());
 	int64 t = getTickCount();
 	// 使用BM算法匹配
-	Mat disp_8, disp;
-	BMstereoMatch(img1, img2, disp, disp_8);
+	Mat disp8, disp;
+	//BMstereoMatch(img1, img2, disp, disp_8);
+	cv::StereoBM bm;
+
+	int unitDisparity = 15;//40
+	int numberOfDisparities = unitDisparity * 16;
+	bm.state->roi1 = roi1;
+	bm.state->roi2 = roi2;
+	bm.state->preFilterCap = 13;
+	bm.state->SADWindowSize = 19;                                     // 窗口大小
+	bm.state->minDisparity = 0;                                       // 确定匹配搜索从哪里开始  默认值是0
+	bm.state->numberOfDisparities = numberOfDisparities;                // 在该数值确定的视差范围内进行搜索
+	bm.state->textureThreshold = 1000;//10                                  // 保证有足够的纹理以克服噪声
+	bm.state->uniquenessRatio = 1;     //10                               // !!使用匹配功能模式
+	bm.state->speckleWindowSize = 200;   //13                             // 检查视差连通区域变化度的窗口大小, 值为 0 时取消 speckle 检查
+	bm.state->speckleRange = 32;    //32                                  // 视差变化阈值，当窗口内视差变化大于阈值时，该窗口内的视差清零，int 型
+	bm.state->disp12MaxDiff = -1;
+
+	bm(img1, img2, disp);
+
+	// 将16位符号整形的视差矩阵转换为8位无符号整形矩阵
+	disp.convertTo(disp8, CV_8U, 255/(numberOfDisparities*16.));
 	t = getTickCount() - t;
 	printf("BM立体匹配耗时: %fms\n", t*1000/getTickFrequency());
 	// 视差图转为彩色图
-	Mat vdispRGB = this->disp8;
+	Mat vdispRGB = disp8;
 	fromGrayToColor(disp8, vdispRGB);
 	// 将左侧矫正图像与视差图融合
 	Mat merge_mat = mergeImg(img1, disp8);
