@@ -345,7 +345,7 @@ void StereoCamera::readingParameterMatrix(std::string intrinsic_filename, std::s
 	fs["D2"] >> D2;
 	fs.release(); 
 	M1 *= imgScale;
-	M2 *= imgScale;
+	M2 *= imgScale; 
 
 	// 读取双目相机的立体矫正参数
 	fs.open(extrinsic_filename, CV_STORAGE_READ);
@@ -417,7 +417,7 @@ void StereoCamera::stereoMatch(int pic_num, bool no_display, std::string point_c
 	remap(img2, img2r, map21, map22, INTER_LINEAR);
 	imshow("校正前",img1);
 	imshow("校正后", img1r);
-	//waitKey();
+	waitKey();
 	img1 = img1r;
 	img2 = img2r;
 	//time_t = getTickCount() - time_t;

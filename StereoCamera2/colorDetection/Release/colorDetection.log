@@ -1,4 +1,4 @@
-﻿生成启动时间为 2017/1/19 18:29:02。
+﻿生成启动时间为 2017/1/19 21:41:36。
      1>项目“I:\StereoCamera\StereoCamera2\colorDetection\colorDetection.vcxproj”在节点 2 上(Build 个目标)。
      1>ClCompile:
          E:\VisualStudio2012\VC\bin\CL.exe /c /I"E:\AA实验室\SDK\OpenCV\include" /Zi /nologo /W3 /WX- /O2 /Oi /Oy- /GL /D _MBCS /Gm- /EHsc /MD /GS /Gy /fp:precise /Zc:wchar_t /Zc:forScope /Fo"Release\\" /Fd"Release\vc110.pdb" /Gd /TP /analyze- /errorReport:prompt colorDetection.cpp
@@ -13,4 +13,4 @@
 
 生成成功。
 
-已用时间 00:00:01.52
+已用时间 00:00:02.06

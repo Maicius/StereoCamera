@@ -10,8 +10,8 @@ void ColorDetection::initColorDetection(std:: string filename)
 	}
 	leftImg = rawImg(Rect(0, 0, 1280, 720));
 	rightImg = rawImg(Rect(1280,0, 1280, 720));
-	imshow("right_img", rightImg);
-	imshow("left_img", leftImg);
-	waitKey();
+	//imshow("right_img", rightImg);
+	//imshow("left_img", leftImg);
+	//waitKey();
 	cvtColor(leftImg, hsvImg, COLOR_BGR2HSV);
 }
