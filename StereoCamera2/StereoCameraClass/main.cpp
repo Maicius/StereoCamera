@@ -10,18 +10,7 @@ int main()
 
 	StereoCamera *stereoCamera  = new StereoCamera();
 
-	/* 立体标定 运行一次即可 */	
-
-
-
-
-
-
-
-
-
-
-
+	/* 立体标定 运行一次即可 */
 
 	stereoCamera->initPictureFileList(pic_filename, 1, 13);
 	stereoCamera->stereoCalibrateCamera(intrinsic_filename, extrinsic_filename); 
